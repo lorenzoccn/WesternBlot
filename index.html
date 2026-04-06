@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WB Express - Análise de Western Blot</title>
+    <title>Análise de Western Blot</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jstat@latest/dist/jstat.min.js"></script>
     
     <style>
-        /* Estilos customizados mínimos para scrollbars e inputs */
         input[type="number"]::-webkit-inner-spin-button, 
         input[type="number"]::-webkit-outer-spin-button { 
             -webkit-appearance: none; 
@@ -28,13 +27,29 @@
             border-color: #3b82f6;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
+        .draggable-item {
+            cursor: grab;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .draggable-item:active {
+            cursor: grabbing;
+            transform: scale(0.98);
+        }
+        .dropzone {
+            min-height: 80px;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .dropzone.dragover {
+            background-color: #eff6ff;
+            border-color: #3b82f6; 
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
 
     <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <h1 class="text-xl font-bold text-gray-900 tracking-tight">Calculadora WesternBlot <span class="text-sm font-normal text-gray-500">| Lorenzo Chaves Costa Novo</span></h1>
+            <h1 class="text-xl font-bold text-gray-900 tracking-tight">Western Blot <span class="text-sm font-normal text-gray-500">| Análise de resultados</span></h1>
             <div class="flex space-x-3">
                 <button onclick="exportData()" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded transition">Exportar (.txt)</button>
                 <label class="text-sm bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded cursor-pointer transition">
@@ -48,8 +63,12 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         <div class="border-b border-gray-200">
             <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                <button id="btn-tab-calc" onclick="switchTab('calc')" class="border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">Calculadora de Expressão</button>
-                <button id="btn-tab-stats" onclick="switchTab('stats')" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">Análise Estatística</button>
+                <button id="btn-tab-calc" onclick="switchTab('calc')" class="border-blue-500 text-blue-600 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition">
+                    Calculadora de Expressão
+                </button>
+                <button id="btn-tab-stats" onclick="switchTab('stats')" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition text-center leading-tight">
+                    Análise Estatística<br><span class="text-[10px] font-bold text-orange-500 tracking-wide">(BETA)</span>
+                </button>
             </nav>
         </div>
     </div>
@@ -57,87 +76,119 @@
     <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         
         <div id="tab-calc" class="space-y-8 block">
-            
             <section class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">Configuração Inicial</h2>
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">1. Configuração do gel</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Quantidade de Poços (Amostras)</label>
-                        <input type="number" id="numWells" min="1" class="scientific-input" placeholder="Ex: 8">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Qtd. de poços (amostras)</label>
+                        <input type="number" id="numWells" min="1" class="scientific-input" placeholder="Ex: 15">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Qtd. de Proteínas Alvo</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Qtd. de proteínas alvo (sem housekeeping)</label>
                         <input type="number" id="numTargets" min="1" class="scientific-input" placeholder="Ex: 2">
                     </div>
                     <div>
-                        <button onclick="generateGrid()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded transition">Gerar Entradas</button>
+                        <button onclick="generateGrid()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded transition">Gerar entradas</button>
                     </div>
                 </div>
             </section>
 
             <section id="dataEntrySection" class="hidden bg-white p-6 rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">Dados Brutos de Densitometria</h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-gray-900">2. Dados brutos</h2>
+                </div>
                 <div id="dataGrid" class="space-y-6"></div>
                 <div class="mt-6 border-t border-gray-100 pt-6 flex justify-end">
-                    <button onclick="calculateExpression()" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded transition">Calcular Expressão Relativa</button>
+                    <button onclick="prepareGroupSetup()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded transition">Avançar: Nomear grupos</button>
+                </div>
+            </section>
+
+            <section id="groupSetupSection" class="hidden bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-gray-900">3. Nomeação dos grupos</h2>
+                </div>
+                <p class="text-sm text-gray-500 mb-4">Atribua um nome de grupo a cada poço (ex: WT, KO, Tratado A).</p>
+                <div id="groupGrid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6"></div>
+                <div class="flex justify-end border-t border-gray-100 pt-6">
+                    <button onclick="prepareControlSelection()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded transition">Avançar: Definir controles</button>
+                </div>
+            </section>
+
+            <section id="controlMappingSection" class="hidden bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">4. Mapeamento de controles</h2>
+                <div id="controlSelectionDiv" class="mb-6">
+                    <p class="text-sm text-gray-600 mb-3">Selecione quais dos grupos funcionam como <b>Controle</b> no seu experimento:</p>
+                    <div id="controlCheckboxes" class="flex flex-wrap gap-4 mb-4"></div>
+                    <button onclick="generateDragAndDrop()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded text-sm transition">Gerar painel de associação</button>
+                </div>
+
+                <div id="dragAndDropArea" class="hidden border-t border-gray-200 pt-6">
+                    <p class="text-sm text-gray-600 mb-4">Arraste os grupos de tratamento para o controle pelo qual eles devem ser normalizados.</p>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="col-span-1 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <h3 class="font-semibold text-gray-700 mb-3 text-sm">Grupos para normalizar (Arraste)</h3>
+                            <div id="treatmentPool" class="dropzone min-h-[150px] space-y-2 p-2 border-2 border-dashed border-gray-300 rounded" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+                        </div>
+                        <div id="controlDropzones" class="col-span-1 lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+                    </div>
+                    <div class="flex justify-end mt-6">
+                        <button onclick="calculateFinalExpression()" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded transition shadow-sm">Calcular resultados finais</button>
+                    </div>
                 </div>
             </section>
 
             <section id="resultsSection" class="hidden space-y-6">
                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 overflow-x-auto">
-                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Resultados Normalizados</h2>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold text-gray-900">Resultados normalizados (Fold Change vs Controle)</h2>
+                        <button onclick="copyResultsToClipboard(this)" class="text-sm bg-green-600 hover:bg-green-700 text-white py-1.5 px-3 rounded font-medium transition flex items-center gap-1 shadow-sm">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                            Copiar para planilha
+                        </button>
+                    </div>
                     <div id="resultsGrid"></div>
                 </div>
-
-                <div id="distributionWarning" class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded text-sm text-blue-800">
-                    </div>
-
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200">
                     <button onclick="toggleMath()" class="w-full text-left px-6 py-4 font-semibold text-gray-800 hover:bg-gray-50 flex justify-between items-center">
-                        Visualizar Cálculos Passo a Passo
+                        Visualizar cálculos e distribuição estatística passo a passo
                         <span id="mathIcon" class="transform transition-transform text-xl">+</span>
                     </button>
-                    <div id="mathDetails" class="hidden px-6 py-4 border-t border-gray-200 text-sm font-mono text-gray-600 space-y-2 bg-gray-50 overflow-x-auto">
-                        </div>
+                    <div id="mathDetails" class="hidden px-6 py-4 border-t border-gray-200 text-sm font-mono text-gray-600 space-y-2 bg-gray-50 overflow-x-auto"></div>
                 </div>
             </section>
         </div>
 
-
         <div id="tab-stats" class="space-y-8 hidden">
-            
             <section class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-                <h2 class="text-lg font-semibold text-gray-900 mb-4">Definição de Grupos Experimentais</h2>
-                <p class="text-sm text-gray-500 mb-4">Atribua cada poço a um grupo (ex: 'Controle', 'Tratado').</p>
-                <div id="groupGrid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-                    </div>
-                <div class="flex items-end space-x-4 border-t border-gray-100 pt-6">
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">Análise orientada aos dados</h2>
+                <div class="flex items-end space-x-4">
                     <div class="flex-grow max-w-xs">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Analisar Proteína</label>
-                        <select id="targetSelector" class="scientific-input">
-                            </select>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Analisar proteína</label>
+                        <select id="targetSelector" class="scientific-input"></select>
                     </div>
-                    <button onclick="runStatistics()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded transition">Rodar Análise & Gerar Gráfico</button>
+                    <button onclick="runStatistics()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                        Rodar algoritmo e gerar gráfico
+                    </button>
                 </div>
             </section>
 
             <section id="statsResultSection" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 col-span-1 flex flex-col">
                     <h3 class="text-md font-semibold text-gray-900 mb-4">Resultado Estatístico</h3>
-                    <div id="statsOutput" class="flex-grow space-y-4 text-sm">
-                        </div>
+                    <div id="statsOutput" class="flex-grow space-y-4 text-sm"></div>
                     <hr class="my-4 border-gray-200">
-                    <h3 class="text-md font-semibold text-gray-900 mb-2">Customizar Gráfico</h3>
+                    <h3 class="text-md font-semibold text-gray-900 mb-2">Customizar gráfico</h3>
                     <div class="space-y-3 text-sm">
                         <div>
-                            <label class="block text-gray-700 mb-1">Título do Gráfico</label>
+                            <label class="block text-gray-700 mb-1">Título do gráfico</label>
                             <input type="text" id="chartTitleInput" class="scientific-input py-1" onchange="updateChartLayout()">
                         </div>
                         <div>
-                            <label class="block text-gray-700 mb-1">Cor das Colunas</label>
+                            <label class="block text-gray-700 mb-1">Cor das colunas</label>
                             <input type="color" id="chartColorInput" value="#3b82f6" class="w-full h-8 cursor-pointer rounded border border-gray-300" onchange="updateChartLayout()">
                         </div>
-                        <button onclick="exportChart()" class="w-full mt-4 bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded transition text-sm">Salvar Imagem (PNG)</button>
+                        <button onclick="exportChart()" class="w-full mt-4 bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded transition text-sm">Salvar imagem (PNG)</button>
                     </div>
                 </div>
 
@@ -145,23 +196,72 @@
                     <div id="plotlyChart" class="w-full h-[400px]"></div>
                 </div>
             </section>
-
         </div>
     </main>
+
+    <footer class="bg-white border-t border-gray-200 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-sm text-gray-500">
+            Feito por: Lorenzo Chaves Costa Novo, mestrando no PPG Neurociências - UFRGS, LPBCN.
+        </div>
+    </footer>
 
     <script>
         // ================= ESTADO GLOBAL =================
         let appState = {
-            numWells: 0,
-            numTargets: 0,
-            normalizerRaw: [],
-            targetsRaw: [], // Array de arrays: [alvoIndex][pocoIndex]
-            normalized: [], // Array de arrays: [alvoIndex][pocoIndex]
-            groups: [],     // Array de strings mapeando o grupo de cada poço
+            numWells: 0, numTargets: 0,
+            normalizerRaw: [], targetsRaw: [], hkNormalized: [], finalNormalized: [],
+            groups: [], uniqueGroups: [], controlGroups: [], controlMapping: {},
             chartData: null
         };
 
-        // ================= UI & NAVEGAÇÃO =================
+        // ================= EVENTO DE COLAR (PASTE) =================
+        document.addEventListener('paste', function(e) {
+            if (!e.target.classList.contains('scientific-input') || !e.target.id) return;
+            let pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (!pasteData.includes('\t') && !pasteData.includes('\n')) return; 
+
+            e.preventDefault();
+            let rows = pasteData.split(/\r?\n/).filter(row => row.trim() !== '');
+            let startId = e.target.id; 
+            let startType, startTgtIdx, startWell;
+            
+            if (startId.startsWith('norm_')) {
+                startType = 'norm'; startWell = parseInt(startId.split('_')[1]); startTgtIdx = -1;
+            } else if (startId.startsWith('target_')) {
+                startType = 'target'; let parts = startId.split('_');
+                startTgtIdx = parseInt(parts[1]); startWell = parseInt(parts[2]);
+            } else if (startId.startsWith('grp_')) {
+                startType = 'grp'; startWell = parseInt(startId.split('_')[1]);
+            } else { return; }
+
+            for (let r = 0; r < rows.length; r++) {
+                let cols = rows[r].split('\t');
+                for (let c = 0; c < cols.length; c++) {
+                    let currentWell = startWell + c;
+                    if (currentWell >= appState.numWells) continue;
+                    let targetElId = null;
+                    if (startType === 'grp') {
+                         if (r > 0) break; targetElId = `grp_${currentWell}`;
+                    } else {
+                        let currentTgtIdx = startTgtIdx + r;
+                        if (currentTgtIdx === -1) targetElId = `norm_${currentWell}`;
+                        else if (currentTgtIdx >= 0 && currentTgtIdx < appState.numTargets) targetElId = `target_${currentTgtIdx}_${currentWell}`;
+                    }
+
+                    if (targetElId) {
+                        let el = document.getElementById(targetElId);
+                        if (el) {
+                            if (startType === 'grp') el.value = cols[c].trim();
+                            else {
+                                let valStr = cols[c].trim().replace(',', '.'); 
+                                if (!isNaN(valStr) && valStr !== '') el.value = parseFloat(valStr);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
         function switchTab(tabId) {
             document.getElementById('tab-calc').classList.add('hidden');
             document.getElementById('tab-stats').classList.add('hidden');
@@ -169,191 +269,280 @@
             document.getElementById('btn-tab-calc').classList.add('border-transparent', 'text-gray-500');
             document.getElementById('btn-tab-stats').classList.remove('border-blue-500', 'text-blue-600');
             document.getElementById('btn-tab-stats').classList.add('border-transparent', 'text-gray-500');
-
             document.getElementById(`tab-${tabId}`).classList.remove('hidden');
             document.getElementById(`btn-tab-${tabId}`).classList.remove('border-transparent', 'text-gray-500');
             document.getElementById(`btn-tab-${tabId}`).classList.add('border-blue-500', 'text-blue-600');
 
-            if(tabId === 'stats' && appState.normalized.length > 0) {
-                renderGroupSetup();
+            if(tabId === 'stats' && appState.finalNormalized.length > 0) {
+                const targetSelect = document.getElementById('targetSelector');
+                targetSelect.innerHTML = '';
+                for (let t = 0; t < appState.numTargets; t++) targetSelect.innerHTML += `<option value="${t}">Proteína alvo ${t+1}</option>`;
             }
         }
 
-        // ================= ABA 1: LÓGICA =================
         function generateGrid() {
             const wells = parseInt(document.getElementById('numWells').value);
             const targets = parseInt(document.getElementById('numTargets').value);
+            if (!wells || !targets || wells <= 0 || targets <= 0) return alert("Insira valores válidos.");
+            appState.numWells = wells; appState.numTargets = targets;
+            const grid = document.getElementById('dataGrid'); grid.innerHTML = '';
 
-            if (!wells || !targets || wells <= 0 || targets <= 0) {
-                alert("Por favor, insira valores válidos para poços e proteínas alvo.");
-                return;
-            }
-
-            appState.numWells = wells;
-            appState.numTargets = targets;
-            
-            const grid = document.getElementById('dataGrid');
-            grid.innerHTML = '';
-
-            // Helper para gerar linhas
             const createRow = (title, idPrefix) => {
-                let html = `<div class="mb-4">
-                    <label class="block text-sm font-semibold text-gray-800 mb-2">${title}</label>
-                    <div class="flex space-x-2 overflow-x-auto pb-2">`;
-                for (let i = 0; i < wells; i++) {
-                    html += `<div class="flex-none w-20">
-                                <span class="block text-xs text-gray-500 text-center mb-1">Poço ${i+1}</span>
-                                <input type="number" id="${idPrefix}_${i}" class="scientific-input text-sm" placeholder="0">
-                             </div>`;
-                }
-                html += `</div></div>`;
-                return html;
+                let html = `<div class="mb-4"><label class="block text-sm font-semibold text-gray-800 mb-2">${title}</label><div class="flex space-x-2 overflow-x-auto pb-2">`;
+                for (let i = 0; i < wells; i++) html += `<div class="flex-none w-20"><span class="block text-xs text-gray-500 text-center mb-1">Poço ${i+1}</span><input type="number" id="${idPrefix}_${i}" class="scientific-input text-sm" placeholder="0"></div>`;
+                return html + `</div></div>`;
             };
 
-            // Linha Normalizadora
-            grid.innerHTML += createRow('Proteína Normalizadora (Housekeeping)', 'norm');
-            
-            // Linhas Alvo
-            for (let t = 0; t < targets; t++) {
-                grid.innerHTML += createRow(`Proteína Alvo ${t+1}`, `target_${t}`);
-            }
-
+            grid.innerHTML += createRow('Proteína normalizadora (Housekeeping)', 'norm');
+            for (let t = 0; t < targets; t++) grid.innerHTML += createRow(`Proteína alvo ${t+1}`, `target_${t}`);
             document.getElementById('dataEntrySection').classList.remove('hidden');
+            document.getElementById('groupSetupSection').classList.add('hidden');
+            document.getElementById('controlMappingSection').classList.add('hidden');
             document.getElementById('resultsSection').classList.add('hidden');
         }
 
-        function calculateExpression() {
+        function prepareGroupSetup() {
             appState.normalizerRaw = [];
-            appState.targetsRaw = [];
-            appState.normalized = [];
-            let mathLog = [];
-
-            // Capturar Normalizador
             for (let i = 0; i < appState.numWells; i++) {
                 let val = parseFloat(document.getElementById(`norm_${i}`).value) || 0;
-                if(val === 0) {
-                    alert(`O poço ${i+1} da Proteína Normalizadora é zero ou inválido. A divisão por zero não é permitida.`);
-                    return;
-                }
+                if(val === 0) return alert(`O poço ${i+1} da Proteína Normalizadora é zero ou inválido.`);
                 appState.normalizerRaw.push(val);
             }
-
-            // Capturar Alvos e Calcular
-            for (let t = 0; t < appState.numTargets; t++) {
-                let targetVals = [];
-                let normVals = [];
-                mathLog.push(`<strong class="text-gray-800 block mt-4">>> Calculando Proteína Alvo ${t+1}</strong>`);
-                
-                for (let i = 0; i < appState.numWells; i++) {
-                    let val = parseFloat(document.getElementById(`target_${t}_${i}`).value) || 0;
-                    targetVals.push(val);
-                    
-                    let result = val / appState.normalizerRaw[i];
-                    normVals.push(result);
-                    
-                    mathLog.push(`Poço ${i+1}: Alvo(${val}) / Norm(${appState.normalizerRaw[i]}) = <span class="text-blue-600 font-bold">${result.toFixed(4)}</span>`);
-                }
-                appState.targetsRaw.push(targetVals);
-                appState.normalized.push(normVals);
+            if (appState.groups.length !== appState.numWells) {
+                appState.groups = Array(appState.numWells).fill('Controle');
+                for(let i = Math.ceil(appState.numWells/2); i < appState.numWells; i++) appState.groups[i] = 'Tratamento';
             }
-
-            renderResults(mathLog);
-            assessDistribution();
+            const groupGrid = document.getElementById('groupGrid'); groupGrid.innerHTML = '';
+            for (let i = 0; i < appState.numWells; i++) {
+                groupGrid.innerHTML += `<div><label class="block text-xs text-gray-500 mb-1">Poço ${i+1}</label><input type="text" id="grp_${i}" value="${appState.groups[i]}" class="scientific-input text-sm" placeholder="Ex: WT"></div>`;
+            }
+            document.getElementById('groupSetupSection').classList.remove('hidden');
         }
 
-        function renderResults(mathLog) {
-            const resGrid = document.getElementById('resultsGrid');
-            resGrid.innerHTML = '';
+        function prepareControlSelection() {
+            appState.groups = []; let uniqueSet = new Set();
+            for (let i = 0; i < appState.numWells; i++) {
+                let g = document.getElementById(`grp_${i}`).value.trim() || `Grupo-${i+1}`;
+                appState.groups.push(g); uniqueSet.add(g);
+            }
+            appState.uniqueGroups = Array.from(uniqueSet);
+            const cbDiv = document.getElementById('controlCheckboxes'); cbDiv.innerHTML = '';
+            appState.uniqueGroups.forEach((g, idx) => {
+                let isChecked = appState.controlGroups.includes(g) ? 'checked' : '';
+                if(appState.controlGroups.length === 0 && idx === 0) isChecked = 'checked';
+                cbDiv.innerHTML += `<label class="inline-flex items-center bg-gray-100 px-3 py-2 rounded border border-gray-200 cursor-pointer hover:bg-gray-200 transition"><input type="checkbox" value="${g}" class="ctrl-checkbox w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" ${isChecked}><span class="ml-2 text-sm text-gray-700">${g}</span></label>`;
+            });
+            document.getElementById('controlMappingSection').classList.remove('hidden');
+            document.getElementById('dragAndDropArea').classList.add('hidden'); 
+        }
 
-            let tableHtml = `<table class="min-w-full divide-y divide-gray-200 text-sm">
-                <thead class="bg-gray-50"><tr><th class="px-4 py-2 text-left font-medium text-gray-500">Proteína</th>`;
+        function generateDragAndDrop() {
+            appState.controlGroups = [];
+            document.querySelectorAll('.ctrl-checkbox:checked').forEach(cb => appState.controlGroups.push(cb.value));
+            if(appState.controlGroups.length === 0) return alert("Selecione pelo menos um controle.");
+
+            const treatmentGroups = appState.uniqueGroups.filter(g => !appState.controlGroups.includes(g));
+            const pool = document.getElementById('treatmentPool');
+            const dropzonesContainer = document.getElementById('controlDropzones');
+            pool.innerHTML = ''; dropzonesContainer.innerHTML = '';
+
+            appState.controlGroups.forEach((ctrl, idx) => {
+                dropzonesContainer.innerHTML += `<div class="bg-white border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col h-full"><h3 class="font-semibold text-blue-700 mb-2 text-sm border-b pb-1">Controle: ${ctrl}</h3><div id="dz_${idx}" data-control="${ctrl}" class="dropzone flex-grow space-y-2 rounded p-2" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div></div>`;
+            });
+
+            let poolHTML = ''; let assignedHTML = {};
+            treatmentGroups.forEach((trt, idx) => {
+                let itemStr = `<div id="drag_${idx}" data-group="${trt}" draggable="true" ondragstart="drag(event)" class="draggable-item bg-white border border-gray-300 shadow-sm hover:shadow rounded px-3 py-2 text-sm font-medium text-gray-700 flex items-center gap-2"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>${trt}</div>`;
+                if(appState.controlMapping[trt] && appState.controlGroups.includes(appState.controlMapping[trt])) {
+                    let ctrlIdx = appState.controlGroups.indexOf(appState.controlMapping[trt]);
+                    assignedHTML[`dz_${ctrlIdx}`] = (assignedHTML[`dz_${ctrlIdx}`] || '') + itemStr;
+                } else { poolHTML += itemStr; }
+            });
+            pool.innerHTML = poolHTML;
+            appState.controlGroups.forEach((ctrl, idx) => { if(assignedHTML[`dz_${idx}`]) document.getElementById(`dz_${idx}`).innerHTML = assignedHTML[`dz_${idx}`]; });
+            document.getElementById('dragAndDropArea').classList.remove('hidden');
+        }
+
+        // --- D&D Events ---
+        function allowDrop(ev) { ev.preventDefault(); }
+        function dragEnter(ev) { ev.preventDefault(); if(ev.currentTarget.classList.contains('dropzone')) ev.currentTarget.classList.add('dragover'); }
+        function dragLeave(ev) { if(ev.currentTarget.classList.contains('dropzone')) ev.currentTarget.classList.remove('dragover'); }
+        function drag(ev) { ev.dataTransfer.setData("text", ev.target.id); }
+        function drop(ev) {
+            ev.preventDefault(); let data = ev.dataTransfer.getData("text"); let draggedEl = document.getElementById(data);
+            let dropzone = ev.target.closest('.dropzone');
+            if (dropzone) { dropzone.classList.remove('dragover'); dropzone.appendChild(draggedEl); }
+        }
+
+        function calculateFinalExpression() {
+            appState.controlMapping = {};
+            if(document.getElementById('treatmentPool').querySelectorAll('.draggable-item').length > 0) return alert("Arraste todos os tratamentos antes de calcular.");
             
-            for (let i = 0; i < appState.numWells; i++) tableHtml += `<th class="px-4 py-2 text-center font-medium text-gray-500">P${i+1}</th>`;
-            tableHtml += `</tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
+            appState.controlGroups.forEach((ctrl, idx) => {
+                document.getElementById(`dz_${idx}`).querySelectorAll('.draggable-item').forEach(item => appState.controlMapping[item.getAttribute('data-group')] = ctrl);
+            });
+            appState.controlGroups.forEach(ctrl => appState.controlMapping[ctrl] = ctrl);
+
+            appState.targetsRaw = []; appState.hkNormalized = []; appState.finalNormalized = [];
+            let mathLog = [`<strong class="text-indigo-600 text-lg block">Fase 1: Normalização pelo Housekeeping</strong>`];
 
             for (let t = 0; t < appState.numTargets; t++) {
-                tableHtml += `<tr><td class="px-4 py-2 font-medium text-gray-900">Alvo ${t+1}</td>`;
+                let targetVals = []; let hkNormVals = [];
+                mathLog.push(`<strong class="text-gray-800 block mt-2">> Proteína alvo ${t+1}</strong>`);
                 for (let i = 0; i < appState.numWells; i++) {
-                    tableHtml += `<td class="px-4 py-2 text-center text-gray-700">${appState.normalized[t][i].toFixed(4)}</td>`;
+                    let val = parseFloat(document.getElementById(`target_${t}_${i}`).value) || 0;
+                    targetVals.push(val); let result = val / appState.normalizerRaw[i]; hkNormVals.push(result);
+                    mathLog.push(`P${i+1}: alvo(${val}) / Norm(${appState.normalizerRaw[i]}) = <span class="text-gray-600">${result.toFixed(4)}</span>`);
                 }
+                appState.targetsRaw.push(targetVals); appState.hkNormalized.push(hkNormVals);
+            }
+
+            mathLog.push(`<hr class="my-4 border-gray-300"><strong class="text-indigo-600 text-lg block">Fase 2: Fold Change</strong>`);
+
+            for (let t = 0; t < appState.numTargets; t++) {
+                let currentHKData = appState.hkNormalized[t]; let finalVals = [];
+                let skew = jStat.skewness(currentHKData); let isParametric = (skew >= -1 && skew <= 1);
+                
+                mathLog.push(`<div class="bg-blue-50 p-3 rounded mt-4 border border-blue-100"><strong class="text-gray-800 block">> Referências - alvo ${t+1}</strong>Skewness: <b>${skew.toFixed(3)}</b> -> <b>${isParametric ? 'MÉDIA' : 'MEDIANA'}</b>`);
+                
+                let referenceValues = {};
+                appState.controlGroups.forEach(ctrl => {
+                    let controlValues = [];
+                    for (let i = 0; i < appState.numWells; i++) if (appState.groups[i] === ctrl) controlValues.push(currentHKData[i]);
+                    if(controlValues.length === 0) { referenceValues[ctrl] = 1; mathLog.push(`<span class="text-red-600">Aviso: Controle '${ctrl}' vazio. Ref=1.</span>`); } 
+                    else {
+                        referenceValues[ctrl] = isParametric ? jStat.mean(controlValues) : jStat.median(controlValues);
+                        mathLog.push(`Ref [${ctrl}]: <b>${referenceValues[ctrl].toFixed(4)}</b>`);
+                    }
+                });
+                mathLog.push(`</div><strong class="text-gray-800 block mt-2">> FC - alvo ${t+1}</strong>`);
+
+                for (let i = 0; i < appState.numWells; i++) {
+                    let refValue = referenceValues[appState.controlMapping[appState.groups[i]]] || 1;
+                    let fc = currentHKData[i] / refValue; finalVals.push(fc);
+                    mathLog.push(`P${i+1} [${appState.groups[i]}]: ${currentHKData[i].toFixed(4)} / Ref(${refValue.toFixed(4)}) = <span class="text-blue-600 font-bold">${fc.toFixed(4)}</span>`);
+                }
+                appState.finalNormalized.push(finalVals);
+            }
+
+            const resGrid = document.getElementById('resultsGrid');
+            let tableHtml = `<table class="min-w-full divide-y divide-gray-200 text-sm"><thead class="bg-gray-50"><tr><th class="px-4 py-2 text-left font-medium text-gray-500">Proteína</th>`;
+            for (let i = 0; i < appState.numWells; i++) tableHtml += `<th class="px-4 py-2 text-center font-medium text-gray-500">P${i+1}<br><span class="text-xs text-gray-400">${appState.groups[i]}</span></th>`;
+            tableHtml += `</tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
+            for (let t = 0; t < appState.numTargets; t++) {
+                tableHtml += `<tr><td class="px-4 py-2 font-medium text-gray-900">alvo ${t+1}</td>`;
+                for (let i = 0; i < appState.numWells; i++) tableHtml += `<td class="px-4 py-2 text-center text-gray-700">${appState.finalNormalized[t][i].toFixed(4)}</td>`;
                 tableHtml += `</tr>`;
             }
-            tableHtml += `</tbody></table>`;
-            resGrid.innerHTML = tableHtml;
-
+            resGrid.innerHTML = tableHtml + `</tbody></table>`;
             document.getElementById('mathDetails').innerHTML = mathLog.join('<br>');
             document.getElementById('resultsSection').classList.remove('hidden');
         }
 
-        function toggleMath() {
-            const mathDiv = document.getElementById('mathDetails');
-            const icon = document.getElementById('mathIcon');
-            if (mathDiv.classList.contains('hidden')) {
-                mathDiv.classList.remove('hidden');
-                icon.textContent = '-';
-            } else {
-                mathDiv.classList.add('hidden');
-                icon.textContent = '+';
-            }
-        }
+        // ================= FUNÇÃO DE CÓPIA PARA PLANILHA =================
+        function copyResultsToClipboard(btnElement) {
+            if (appState.finalNormalized.length === 0) return;
 
-        function assessDistribution() {
-            // Usa o coeficiente de assimetria (skewness) da amostra combinada de todos os targets para dar uma dica.
-            // Em bioestatística de WB (n pequeno), testes formais perdem poder. Skewness [-1, 1] é uma regra de polegar aceitável.
-            let allNormalized = appState.normalized.flat();
-            let skew = jStat.skewness(allNormalized);
-            
-            let div = document.getElementById('distributionWarning');
-            let isParametric = (skew >= -1 && skew <= 1);
-            
-            div.innerHTML = `<strong class="block mb-1">Avaliação Preliminar de Distribuição:</strong>
-            O coeficiente de assimetria (Skewness) dos dados normalizados é <b>${skew.toFixed(3)}</b>.<br>
-            ${isParametric 
-                ? 'Indicação: Os dados parecem ter uma distribuição aproximadamente simétrica. Testes <b>paramétricos</b> (ex: ANOVA, t-test) tendem a ser adequados.' 
-                : 'Indicação: Os dados apresentam forte assimetria. Considere utilizar testes <b>não-paramétricos</b> (ex: Kruskal-Wallis, Mann-Whitney) na sua análise.'}`;
-        }
-
-
-        // ================= ABA 2: LÓGICA & PLOTLY =================
-        function renderGroupSetup() {
-            const groupGrid = document.getElementById('groupGrid');
-            const targetSelect = document.getElementById('targetSelector');
-            
-            // Preserve existing groups if re-rendering, otherwise init with "Grupo A", "Grupo B"
-            if (appState.groups.length !== appState.numWells) {
-                appState.groups = Array(appState.numWells).fill('Controle');
-                // Auto-divide by half for convenience
-                for(let i = Math.ceil(appState.numWells/2); i < appState.numWells; i++) {
-                    appState.groups[i] = 'Tratamento';
-                }
-            }
-
-            groupGrid.innerHTML = '';
+            let tsv = "Proteína\t";
             for (let i = 0; i < appState.numWells; i++) {
-                groupGrid.innerHTML += `
-                    <div>
-                        <label class="block text-xs text-gray-500 mb-1">Poço ${i+1}</label>
-                        <input type="text" id="grp_${i}" value="${appState.groups[i]}" class="scientific-input text-sm" placeholder="Nome do Grupo">
-                    </div>
-                `;
+                tsv += `P${i+1} (${appState.groups[i]})` + (i === appState.numWells - 1 ? "" : "\t");
             }
+            tsv += "\n";
 
-            targetSelect.innerHTML = '';
             for (let t = 0; t < appState.numTargets; t++) {
-                targetSelect.innerHTML += `<option value="${t}">Proteína Alvo ${t+1}</option>`;
+                tsv += `alvo ${t+1}\t`;
+                for (let i = 0; i < appState.numWells; i++) {
+                    let val = appState.finalNormalized[t][i].toFixed(4).replace('.', ',');
+                    tsv += val + (i === appState.numWells - 1 ? "" : "\t");
+                }
+                tsv += "\n";
             }
+
+            navigator.clipboard.writeText(tsv).then(() => {
+                const originalHTML = btnElement.innerHTML;
+                btnElement.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Copiado!`;
+                btnElement.classList.replace('bg-green-600', 'bg-blue-600');
+                btnElement.classList.replace('hover:bg-green-700', 'hover:bg-blue-700');
+                
+                setTimeout(() => {
+                    btnElement.innerHTML = originalHTML;
+                    btnElement.classList.replace('bg-blue-600', 'bg-green-600');
+                    btnElement.classList.replace('hover:bg-blue-700', 'hover:bg-green-700');
+                }, 2000);
+            }).catch(err => {
+                console.error("Falha ao copiar: ", err);
+                alert("Erro ao copiar. Verifique as permissões do seu navegador.");
+            });
         }
 
-        function runStatistics() {
-            // 1. Atualizar state de grupos
-            for (let i = 0; i < appState.numWells; i++) {
-                appState.groups[i] = document.getElementById(`grp_${i}`).value.trim() || `Grupo-${i}`;
-            }
+        function toggleMath() {
+            const m = document.getElementById('mathDetails'); const i = document.getElementById('mathIcon');
+            if(m.classList.contains('hidden')) { m.classList.remove('hidden'); i.textContent = '-'; } 
+            else { m.classList.add('hidden'); i.textContent = '+'; }
+        }
 
+        // ================= FUNÇÕES ESTATÍSTICAS NATIVAS =================
+        function getRanks(allVals) {
+            let sorted = allVals.map((v, i) => ({val: v, origIdx: i})).sort((a, b) => a.val - b.val);
+            let ranks = new Array(allVals.length);
+            for(let i=0; i<sorted.length; ){
+                let j=i;
+                while(j<sorted.length && sorted[j].val === sorted[i].val) j++;
+                let rank = (i + 1 + j) / 2; 
+                for(let k=i; k<j; k++) ranks[sorted[k].origIdx] = rank;
+                i = j;
+            }
+            return ranks;
+        }
+
+        function statWelchTTest(g1, g2) {
+            let m1 = jStat.mean(g1), m2 = jStat.mean(g2);
+            let v1 = jStat.variance(g1, true), v2 = jStat.variance(g2, true);
+            let n1 = g1.length, n2 = g2.length;
+            if(n1 < 2 || n2 < 2) return { stat: NaN, p: NaN, name: 'T-Value' };
+            let t = (m1 - m2) / Math.sqrt(v1/n1 + v2/n2);
+            let df = Math.pow(v1/n1 + v2/n2, 2) / (Math.pow(v1/n1, 2)/(n1-1) + Math.pow(v2/n2, 2)/(n2-1));
+            let p = 2 * (1 - jStat.studentt.cdf(Math.abs(t), df));
+            return { stat: t, p: p, name: 'T-Value' };
+        }
+
+        function statMannWhitney(g1, g2) {
+            let n1 = g1.length, n2 = g2.length;
+            let ranks = getRanks(g1.concat(g2));
+            let r1 = 0; for(let i=0; i<n1; i++) r1 += ranks[i];
+            let u1 = r1 - n1*(n1+1)/2; let u2 = n1*n2 - u1;
+            let u = Math.min(u1, u2);
+            let mU = n1*n2/2; let sigmaU = Math.sqrt(n1*n2*(n1+n2+1)/12);
+            let z = (u - mU)/sigmaU;
+            let p = 2 * (1 - jStat.normal.cdf(Math.abs(z), 0, 1));
+            return { stat: u, p: p, name: 'U-Value' };
+        }
+
+        function statAnova(groups) {
+            if(groups.some(g => g.length < 2)) return { stat: NaN, p: NaN, name: 'F-Value' };
+            return { stat: jStat.anovafscore(...groups), p: jStat.anovaftest(...groups), name: 'F-Value' };
+        }
+
+        function statKruskalWallis(groups) {
+            let all = [], ns = [];
+            groups.forEach(g => { all = all.concat(g); ns.push(g.length); });
+            let N = all.length; let ranks = getRanks(all);
+            let sumRankSqOverN = 0, offset = 0;
+            groups.forEach(g => {
+                let n = g.length, sumR = 0;
+                for(let i=0; i<n; i++) sumR += ranks[offset++];
+                sumRankSqOverN += (sumR*sumR)/n;
+            });
+            let H = (12 / (N*(N+1))) * sumRankSqOverN - 3*(N+1);
+            let p = 1 - jStat.chisquare.cdf(H, groups.length - 1);
+            return { stat: H, p: p, name: 'H-Value' };
+        }
+
+        // ================= ÁRVORE DE DECISÃO E RENDERIZAÇÃO =================
+        function runStatistics() {
             const targetIndex = parseInt(document.getElementById('targetSelector').value);
-            const data = appState.normalized[targetIndex];
+            const data = appState.finalNormalized[targetIndex];
             
-            // 2. Agrupar dados
             let groupedData = {};
             for (let i = 0; i < appState.numWells; i++) {
                 let g = appState.groups[i];
@@ -362,180 +551,201 @@
             }
 
             const groupNames = Object.keys(groupedData);
-            if (groupNames.length < 2) {
-                alert("Para análises estatísticas, você precisa de pelo menos 2 grupos experimentais distintos.");
-                return;
-            }
-
-            // 3. Calcular Estatísticas Descritivas e ANOVA via jStat
-            let arraysForAnova = groupNames.map(g => groupedData[g]);
-            let pValue = 1;
-            let fScore = 0;
+            if (groupNames.length < 2) return alert("Você precisa de pelo menos 2 grupos distintos.");
             
-            try {
-                pValue = jStat.anovaftest(...arraysForAnova);
-                fScore = jStat.anovafscore(...arraysForAnova);
-            } catch(e) {
-                console.error("Erro na ANOVA", e);
-                pValue = NaN;
+            let arraysList = groupNames.map(g => groupedData[g]);
+            
+            let skew = jStat.skewness(data);
+            let isParametric = (skew >= -1 && skew <= 1);
+            let k = groupNames.length;
+            let resultObj = {}, testName = "", testRationale = "";
+
+            if(arraysList.some(g => g.length < 2)) {
+                alert("Atenção: Você tem grupos com apenas 1 poço (n=1). A estatística falhará.");
             }
 
-            let means = [];
-            let sems = []; // Standard Error of Mean (SD / sqrt(N))
+            if (k === 2) {
+                if (isParametric) {
+                    testName = "Teste-T de Student (Welch / Não-Pareado)";
+                    testRationale = "Identificados 2 grupos com distribuição simétrica/normal.";
+                    resultObj = statWelchTTest(arraysList[0], arraysList[1]);
+                } else {
+                    testName = "Teste de Mann-Whitney U";
+                    testRationale = "Identificados 2 grupos com distribuição assimétrica/não-paramétrica.";
+                    resultObj = statMannWhitney(arraysList[0], arraysList[1]);
+                }
+            } else {
+                if (isParametric) {
+                    testName = "ANOVA One-Way";
+                    testRationale = "Identificados 3+ grupos com distribuição simétrica/normal.";
+                    resultObj = statAnova(arraysList);
+                } else {
+                    testName = "Teste de Kruskal-Wallis";
+                    testRationale = "Identificados 3+ grupos com distribuição assimétrica/não-paramétrica.";
+                    resultObj = statKruskalWallis(arraysList);
+                }
+            }
+
+            let means = [], sems = []; 
+            let pValid = !isNaN(resultObj.p);
 
             let statsHtml = `
+                <div class="mb-4 bg-gray-50 border border-gray-200 p-3 rounded text-sm">
+                    <div class="flex items-center gap-2 text-indigo-700 font-semibold mb-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Algoritmo de decisão
+                    </div>
+                    <span class="block text-gray-700">Skewness Global: <b>${skew.toFixed(3)}</b></span>
+                    <span class="block text-gray-700">Justificativa: ${testRationale}</span>
+                </div>
                 <div class="mb-3">
-                    <span class="font-bold text-gray-700 block">ANOVA One-Way (Paramétrico)</span>
-                    <span class="text-gray-600">F-value: ${isNaN(fScore) ? 'N/A' : fScore.toFixed(3)}</span><br>
-                    <span class="text-gray-600">p-value: <b class="${pValue < 0.05 ? 'text-red-600' : 'text-gray-900'}">${isNaN(pValue) ? 'N/A' : (pValue < 0.001 ? '< 0.001' : pValue.toFixed(4))}</b></span>
-                    ${pValue < 0.05 ? '<span class="text-red-600 text-xs block mt-1">* Diferença estatisticamente significativa (p < 0.05)</span>' : ''}
+                    <span class="font-bold text-gray-800 block text-md">${testName}</span>
+                    <span class="text-gray-600">${resultObj.name}: ${pValid ? resultObj.stat.toFixed(3) : 'N/A'}</span><br>
+                    <span class="text-gray-600">p-value: <b class="${(pValid && resultObj.p < 0.05) ? 'text-red-600' : 'text-gray-900'}">${pValid ? (resultObj.p < 0.001 ? '< 0.001' : resultObj.p.toFixed(4)) : 'N/A'}</b></span>
+                    ${(pValid && resultObj.p < 0.05) ? '<span class="text-red-600 text-xs block mt-1">* Diferença estatisticamente significativa (p < 0.05)</span>' : ''}
                 </div>
                 <table class="w-full text-left text-xs text-gray-600 mt-2">
-                    <thead><tr class="border-b"><th class="pb-1">Grupo</th><th class="pb-1">Média</th><th class="pb-1">EPM</th><th class="pb-1">n</th></tr></thead>
+                    <thead><tr class="border-b"><th class="pb-1">Grupo</th><th class="pb-1">Média (FC)</th><th class="pb-1">EPM</th><th class="pb-1">n</th></tr></thead>
                     <tbody>
             `;
 
             for (let g of groupNames) {
                 let arr = groupedData[g];
                 let mean = jStat.mean(arr);
-                let sd = jStat.stdev(arr, true); // true = sample standard deviation
-                let sem = sd / Math.sqrt(arr.length);
-                means.push(mean);
-                sems.push(sem);
+                let sd = arr.length > 1 ? jStat.stdev(arr, true) : 0;
+                let sem = arr.length > 1 ? sd / Math.sqrt(arr.length) : 0;
+                means.push(mean); sems.push(sem);
                 
                 statsHtml += `<tr><td class="py-1 font-medium">${g}</td><td>${mean.toFixed(3)}</td><td>±${sem.toFixed(3)}</td><td>${arr.length}</td></tr>`;
             }
-            statsHtml += `</tbody></table>`;
+            
+            // Tabela Finalizada e Inclusão da Legenda
+            statsHtml += `</tbody></table>
+                <div class="mt-3 pt-2 border-t border-gray-100 text-[11px] text-gray-500 leading-tight">
+                    <b class="text-gray-700">Legenda:</b><br>
+                    <span class="inline-block mt-1"><b>FC:</b> Fold Change (Expressão relativa ao controle pareado).</span><br>
+                    <span class="inline-block mt-0.5"><b>EPM:</b> Erro Padrão da Média (Dispersão da estimativa da média amostral).</span><br>
+                    <span class="inline-block mt-0.5"><b>n:</b> Tamanho amostral (Número de poços alocados no grupo).</span>
+                </div>
+            `;
             
             document.getElementById('statsOutput').innerHTML = statsHtml;
             document.getElementById('statsResultSection').classList.remove('hidden');
 
-            // 4. Renderizar Gráfico no Plotly
-            appState.chartData = {
-                x: groupNames,
-                y: means,
-                error_y: {
-                    type: 'data',
-                    array: sems,
-                    visible: true,
-                    color: '#1f2937',
-                    thickness: 1.5,
-                    width: 5
-                }
+            // Salvar dados estruturados para o Plotly renderizar os pontos de Jitter
+            appState.chartData = { 
+                x: groupNames, 
+                y: means, 
+                sems: sems, 
+                rawData: arraysList 
             };
             
-            document.getElementById('chartTitleInput').value = `Expressão Relativa - Alvo ${targetIndex+1}`;
+            document.getElementById('chartTitleInput').value = `Fold Change - alvo ${targetIndex+1}`;
             renderChart();
         }
 
         function renderChart() {
             if(!appState.chartData) return;
-            
             const title = document.getElementById('chartTitleInput').value;
             const color = document.getElementById('chartColorInput').value;
+            
+            // X-axis numérico mapeado para permitir o Jitter dos pontos com segurança
+            const xNumeric = appState.chartData.x.map((_, i) => i);
 
-            const trace1 = {
-                x: appState.chartData.x,
-                y: appState.chartData.y,
-                name: 'Expressão Relativa',
-                type: 'bar',
-                error_y: appState.chartData.error_y,
-                marker: {
-                    color: color,
-                    line: { color: '#1f2937', width: 1 }
-                }
+            let traces = [];
+
+            // 1. Trace Principal: Gráfico de Barras com as Barras de Erro (EPM)
+            traces.push({ 
+                x: xNumeric, 
+                y: appState.chartData.y, 
+                name: 'Média (FC)', 
+                type: 'bar', 
+                error_y: { type: 'data', array: appState.chartData.sems, visible: true, color: '#1f2937', thickness: 1.5, width: 5 }, 
+                marker: { color: color, line: { color: '#1f2937', width: 1 } } 
+            });
+
+	    // Dispersão com lógica de centralização/afastamento inteligente
+            appState.chartData.rawData.forEach((vals, idx) => {
+                let offsets = getSmartOffsets(vals);
+                let jitteredX = vals.map((v, i) => idx + offsets[i]);
+                
+
+                
+                traces.push({
+                    x: jitteredX,
+                    y: vals,
+                    type: 'scatter',
+                    mode: 'markers',
+                    name: appState.chartData.x[idx] + ' (Dados Individuais)',
+                    marker: { color: 'rgba(255, 255, 255, 0.9)', size: 7, line: { color: '#1f2937', width: 1.2 } },
+                    hoverinfo: 'y',
+                    showlegend: false
+                });
+            });
+
+            const layout = { 
+                title: { text: title, font: { family: 'Arial, sans-serif', size: 18 } }, 
+                xaxis: { 
+                    title: 'Grupos Experimentais', 
+                    tickmode: 'array',
+                    tickvals: xNumeric,
+                    ticktext: appState.chartData.x,
+                    tickfont: { size: 14 } 
+                }, 
+                yaxis: { title: 'Fold Change Relativo ao Controle', zeroline: true }, 
+                margin: { l: 60, r: 20, t: 60, b: 60 }, 
+                plot_bgcolor: 'rgba(255,255,255,1)', 
+                paper_bgcolor: 'rgba(255,255,255,1)',
+                showlegend: false
             };
-
-            const layout = {
-                title: { text: title, font: { family: 'Arial, sans-serif', size: 18 } },
-                xaxis: { title: 'Grupos Experimentais', tickfont: { size: 14 } },
-                yaxis: { title: 'Expressão Relativa (Alvo / Normalizador)', zeroline: true },
-                margin: { l: 60, r: 20, t: 60, b: 60 },
-                plot_bgcolor: 'rgba(255,255,255,1)',
-                paper_bgcolor: 'rgba(255,255,255,1)'
-            };
-
-            const config = { responsive: true, displayModeBar: false };
-
-            Plotly.newPlot('plotlyChart', [trace1], layout, config);
+            
+            Plotly.newPlot('plotlyChart', traces, layout, { responsive: true, displayModeBar: false });
         }
 
-        function updateChartLayout() {
-            renderChart();
-        }
-
-        function exportChart() {
-            Plotly.downloadImage('plotlyChart', {format: 'png', width: 800, height: 600, filename: 'wb_expression_chart'});
-        }
-
+        function updateChartLayout() { renderChart(); }
+        function exportChart() { Plotly.downloadImage('plotlyChart', {format: 'png', width: 800, height: 600, filename: 'wb_expression_chart'}); }
 
         // ================= SISTEMA DE SALVAMENTO (I/O) =================
         function exportData() {
-            // Captura os dados da tela caso não tenham sido processados ainda
             if(appState.numWells > 0 && appState.numTargets > 0) {
-                 // Salva o estado atual
-                const dataStr = JSON.stringify(appState, null, 2);
-                const blob = new Blob([dataStr], { type: "text/plain" });
-                const url = URL.createObjectURL(blob);
-                
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = `wb_experiment_${new Date().toISOString().slice(0,10)}.txt`;
-                document.body.appendChild(a);
-                a.click();
+                a.href = URL.createObjectURL(new Blob([JSON.stringify(appState, null, 2)], { type: "text/plain" }));
+                
+                const now = new Date();
+                const pad = num => String(num).padStart(2, '0');
+                const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}h${pad(now.getMinutes())}m${pad(now.getSeconds())}s`;
+                
+                a.download = `wb_experiment_${dateStr}.txt`;
+                document.body.appendChild(a); 
+                a.click(); 
                 document.body.removeChild(a);
-                URL.revokeObjectURL(url);
             } else {
                 alert("Não há dados configurados para exportar.");
             }
         }
 
         function importData(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
+            const file = event.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    const importedState = JSON.parse(e.target.result);
-                    
-                    // Validação simples
-                    if(importedState.numWells !== undefined && importedState.numTargets !== undefined) {
-                        appState = importedState;
-                        
-                        // Repovoar UI - Aba 1
-                        document.getElementById('numWells').value = appState.numWells;
-                        document.getElementById('numTargets').value = appState.numTargets;
+                    const imported = JSON.parse(e.target.result);
+                    if(imported.numWells !== undefined) {
+                        appState = imported;
+                        document.getElementById('numWells').value = appState.numWells; document.getElementById('numTargets').value = appState.numTargets;
                         generateGrid();
-                        
-                        // Inserir valores brutos
-                        for(let i=0; i < appState.numWells; i++) {
-                            document.getElementById(`norm_${i}`).value = appState.normalizerRaw[i];
-                        }
-                        for(let t=0; t < appState.numTargets; t++) {
-                            for(let i=0; i < appState.numWells; i++) {
-                                document.getElementById(`target_${t}_${i}`).value = appState.targetsRaw[t][i];
-                            }
-                        }
-                        
-                        // Calcular automaticamente para gerar resultados
-                        calculateExpression();
-
-                        // Notificar
-                        alert("Dados importados com sucesso!");
-                        event.target.value = ''; // reseta o input
-                    } else {
-                        throw new Error("Formato inválido");
+                        for(let i=0; i<appState.numWells; i++) document.getElementById(`norm_${i}`).value = appState.normalizerRaw[i];
+                        for(let t=0; t<appState.numTargets; t++) for(let i=0; i<appState.numWells; i++) document.getElementById(`target_${t}_${i}`).value = appState.targetsRaw[t][i];
+                        prepareGroupSetup();
+                        for(let i=0; i<appState.numWells; i++) document.getElementById(`grp_${i}`).value = appState.groups[i];
+                        prepareControlSelection();
+                        if(appState.controlGroups.length > 0) { generateDragAndDrop(); calculateFinalExpression(); }
+                        alert("Dados importados com sucesso!"); event.target.value = '';
                     }
-                } catch(err) {
-                    alert("Erro ao ler o arquivo. Certifique-se de que é um arquivo .txt gerado por este aplicativo.");
-                    console.error(err);
-                }
+                } catch(err) { alert("Erro ao ler o arquivo."); }
             };
             reader.readAsText(file);
         }
-
-        // Inicialização padrão: abrir Aba 1
         switchTab('calc');
     </script>
 </body>
