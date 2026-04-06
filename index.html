@@ -293,7 +293,7 @@
                 return html + `</div></div>`;
             };
 
-            grid.innerHTML += createRow('Proteína normalizadora (Housekeeping)', 'norm');
+            grid.innerHTML += createRow('Proteína Housekeeping (para decimal use ponto, exemplo: 0.1 )', 'norm');
             for (let t = 0; t < targets; t++) grid.innerHTML += createRow(`Proteína alvo ${t+1}`, `target_${t}`);
             document.getElementById('dataEntrySection').classList.remove('hidden');
             document.getElementById('groupSetupSection').classList.add('hidden');
